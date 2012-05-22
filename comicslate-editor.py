@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+#Version="0.3"
 
 import sys, os, re
 from PyQt4 import QtGui, QtCore,Qt
