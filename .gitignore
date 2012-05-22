@@ -1,16 +1,18 @@
-
+.gitignore
 
 # Packages
 *.egg
 *.egg-info
 build
-build/
+bin
 eggs
 parts
 var
 sdist
 develop-eggs
 .installed.cfg
+win32
+linux32
 
 
 warn*.txt
