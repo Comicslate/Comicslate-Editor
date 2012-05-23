@@ -13,6 +13,8 @@ develop-eggs
 .installed.cfg
 win32
 linux32
+*.tar.gz
+make-bin.sh
 
 
 warn*.txt
