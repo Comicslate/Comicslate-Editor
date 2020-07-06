@@ -24,7 +24,7 @@
 # along with this library; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-
+import logging
 import re
 import sys
 from PyQt5 import QtGui, Qt
@@ -33,13 +33,26 @@ from PyQt5.QtWidgets import (QMainWindow, QAction, qApp, QFileDialog, QGraphicsI
                              QGraphicsTextItem, QGraphicsScene, QHBoxLayout, QVBoxLayout,
                              QLabel, QLineEdit, QGraphicsView, QApplication)
 from PyQt5.QtCore import (QSettings, QFileInfo, QSize, QRectF, QPoint, QDir, QPointF)
+import files
 
 
-class main_window(QMainWindow):
+
+logging.basicConfig(format='%(module)s:%(levelname)s:%(message)s', level=logging.DEBUG)
+logger = logging.getLogger('comicslate')
+#logger.setLevel(logging.DEBUG)
+#logging.getLogger('comicslate.files').setLevel(logging.DEBUG)
+
+print(dir(logging.Logger.manager))
+print(logging.Logger.manager.loggerDict)
+for i in logging.Logger.manager.loggerDict:
+    print(i)
+
+class MainWindow(QMainWindow):
     def __init__(self, parent=None):
-        QMainWindow.__init__(self, parent)
+        super(MainWindow, self).__init__()
         self.setWindowTitle(u'Редактор comicslate.org')
         self.readSettings()
+        self.filename = None
 
         self.createActions()
         # self.createMenus()
@@ -65,13 +78,12 @@ class main_window(QMainWindow):
         self.settings.setValue("size", self.size())
         self.settings.setValue("position", self.pos())
         self.settings.setValue("lastOpenedFile", self.filename)
-        self.settings.setValue("lastDir", QFileInfo(self.filename).absolutePath())
+        self.settings.setValue("lastDir", self.filename.dir)
         self.settings.endGroup()
 
     def readSettings(self):
         self.settings = QSettings(u'Comicslate', u'Comicslate Viewer')
         self.settings.beginGroup('MainWindow')
-        #self.resize(self.settings.value('size', QSize(500, 500)).toQSize())
         self.resize(self.settings.value('size', QSize(500, 500)))
         self.move(self.settings.value('position', QPoint(100, 100)))
         self.filename = self.settings.value('lastOpenedFile', '')
@@ -85,7 +97,7 @@ class main_window(QMainWindow):
         self.nextAct = QAction(QtGui.QIcon('icons/next.png'), 'Next File', self)
         self.nextAct.setToolTip(u"Следующий стрип")
         self.nextAct.setShortcut("Qt.Qt.RightArrow")
-        self.prevAct = QAction(QtGui.QIcon('icons/prev.png'), 'Previos File', self)
+        self.prevAct = QAction(QtGui.QIcon('icons/prev.png'), 'Previous File', self)
         self.prevAct.setToolTip(u"Предыдущий стрип")
         self.prevAct.setShortcut("Qt.Qt.LeftArrow")
         self.openAct = QAction(QtGui.QIcon('icons/open.png'), 'Open', self)
@@ -106,7 +118,7 @@ class main_window(QMainWindow):
         self.exitAct = QAction(QtGui.QIcon('icons/exit.png'), 'Exit', self)
         self.exitAct.setShortcut("Ctrl+Q")
         self.exitAct.setToolTip(u"Выход")
-        self.openAct.triggered.connect(self.openFile)
+        self.openAct.triggered.connect(self.openfile)
         self.exitAct.triggered.connect(self.exitProgramm)
         self.nextAct.triggered.connect(self.nextFile)
         self.prevAct.triggered.connect(self.prevFile)
@@ -158,46 +170,31 @@ class main_window(QMainWindow):
         # self.toolbar.addAction(self.optionAct)
         self.toolbar.addAction(self.exitAct)
 
-    def openFile(self):
-        fileWidget = QFileDialog()
-        filename = fileWidget.getOpenFileName(self, 'Open file', self.dirName, "Image Files (*.png *.jpg *.bmp *.gif)")
-        # print filename
-        if filename != '':
-            self.filename = filename
-            fileInf = QFileInfo(self.filename)
-            self.dirName = fileInf.canonicalPath()
-            self.setWindowTitle(self.filename)
+    def openfile(self):
+        filewidget = QFileDialog()
+        self.filename = filewidget.getOpenFileName(self, 'Open file', self.dirName, "Image Files (*.png *.jpg *.bmp *.gif)")[0]
+        if self.filename != '':
+            logger.debug(f'Filename: {self.filename}')
+            self.filename = files.MyFile(self.filename)
+            self.setWindowTitle(self.filename.name)
             self.mw.open(self.filename)
+        else:
+            self.filename = None
 
     def nextFile(self):
-        lst, filename = self.dirList()
-        if lst != None:
-            indexFile = lst.lastIndexOf(filename.fileName())
-            if indexFile + 1 < len(lst):
-                self.filename = self.directory.filePath(lst[indexFile + 1])
-                self.setWindowTitle(self.filename)
-                self.mw.open(self.filename)
+        if self.filename != None:
+            self.filename.next()
+            self.setWindowTitle(self.filename.name)
+            self.mw.open(self.filename)
 
     def prevFile(self):
-        lst, filename = self.dirList()
-        if lst != None:
-            indexFile = lst.lastIndexOf(filename.fileName())
-            if indexFile - 1 >= 0:
-                self.filename = self.directory.filePath(lst[indexFile - 1])
-                self.setWindowTitle(self.filename)
-                self.mw.open(self.filename)
-
-    def dirList(self):
-        if self.filename != '':
-            fileInf = QFileInfo(self.filename)
-            self.directory = QDir(fileInf.canonicalPath())
-            listOfFiles = self.directory.entryList(Qt.QStringList("*.png *.jpg *.bmp *.gif".split(" ")))
-            return listOfFiles, fileInf
-        else:
-            return None, None
+        if self.filename != None:
+            self.filename.prev()
+            self.setWindowTitle(self.filename.name)
+            self.mw.open(self.filename)
 
 
-class node(QGraphicsItem):
+class Node(QGraphicsItem):
     def __init__(self, parent=None, scene=None):
         QGraphicsItem.__init__(self, parent=None, scene=None)
         self.setFlag(QGraphicsItem.ItemIsMovable)
@@ -239,7 +236,7 @@ class node(QGraphicsItem):
         QGraphicsItem.mouseReleaseEvent(self, event)
 
 
-class nodeDel(QGraphicsItem):
+class NodeDel(QGraphicsItem):
     def __init__(self, parent=None, scene=None):
         QGraphicsItem.__init__(self, parent=None, scene=None)
         self.setFlag(QGraphicsItem.ItemIsMovable)
@@ -269,9 +266,9 @@ class nodeDel(QGraphicsItem):
         QGraphicsItem.mousePressEvent(self, event)
 
 
-class myTextEdit(QWidget):
+class MyTextEdit(QWidget):
     def __init__(self, text, parent=None):
-        QWidget.__init__(self, parent=None)
+        super(MyTextEdit, self).__init__(self, parent=None)
         self.grid = QGridLayout()
         # self.setWindowFlags(Qt.Qt.FramelessWindowHint | Qt.Qt.WindowStaysOnBottomHint)
         self.readSettings()
@@ -329,37 +326,38 @@ class myTextEdit(QWidget):
         self.settings.endGroup()
 
 
-class myBaloon(QGraphicsRectItem):
-    def __init__(self, text, x, y, w, h, niks, parent=None, scene=None):
-        QGraphicsRectItem.__init__(self, QRectF(x - 5, y - 5, w + 10, h + 10), parent=None)
+class MyBaloon(QGraphicsRectItem):
+    def __init__(self, text, x, y, w, h, parent=None, scene=None):
+        super(MyBaloon, self).__init__(self, QRectF(x - 5, y - 5, w + 10, h + 10), parent=None)
         self.x = x
         self.y = y
         self.w = w
         self.h = h
-        self.niks = niks
-        self.text = Qt.QString(text.decode("utf-8"))
+        self.niks = []
+        #self.text = text.decode("utf-8")
+        self.text = text
         font = QtGui.QFont("Comic Sans MS", 8)
         self.color = QtGui.QColor(255, 255, 255, 255)
         self.pen = QtGui.QPen(Qt.Qt.black, 0)
 
         self.textItem = QGraphicsTextItem(self)
-        self.textItem.setHtml("<div align=\"center\">" + self.text + "</div>")
+        self.textItem.setHtml(f'<div align=\"center\">{self.text}</div>')
         self.textItem.setTextWidth(self.w)
         self.textItem.setPos(self.x - 1, self.y - 1)
         self.textItem.setFont(font)
 
         point = QPointF(self.x, self.y)
-        self.baloonNode1 = node()
+        self.baloonNode1 = Node()
         self.baloonNode1.setParentItem(self)
         self.baloonNode1.setPos(point)
         point = QPointF(self.x + self.w, self.y + self.h)
-        self.baloonNode2 = node()
+        self.baloonNode2 = Node()
         self.baloonNode2.setParentItem(self)
         self.baloonNode2.setPos(point)
         self.baloonNode1.hide()
         self.baloonNode2.hide()
         point = QPointF(self.x + self.w, self.y)
-        self.delNode = nodeDel()
+        self.delNode = NodeDel()
         self.delNode.setParentItem(self)
         self.delNode.setPos(point)
         self.delNode.hide()
@@ -409,7 +407,7 @@ class myBaloon(QGraphicsRectItem):
                             self.itemsColided.append(i)
             self.color = QtGui.QColor(255, 255, 255, 40)
             self.pen = QtGui.QPen(Qt.Qt.blue, 2)
-            self.textEdit = myTextEdit(self.fullText(), self)
+            self.textEdit = MyTextEdit(self.fullText(), self)
             self.textEdit.setParent(self.parentWidget())
             self.textEdit.show()
             self.update()
@@ -463,13 +461,13 @@ class myBaloon(QGraphicsRectItem):
             i.show()
         self.update()
 
-    def retMoved(self, pos, node):
-        if node == self.baloonNode1:
+    def retMoved(self, pos, Node):
+        if Node == self.baloonNode1:
             self.w = self.w + self.x - pos.x()
             self.h = self.h + self.y - pos.y()
             self.x = pos.x()
             self.y = pos.y()
-        if node == self.baloonNode2:
+        if Node == self.baloonNode2:
             sceneW = self.w + self.x
             sceneH = self.h + self.y
             self.w = self.w - sceneW + pos.x()
@@ -492,31 +490,33 @@ class myBaloon(QGraphicsRectItem):
 
 class OptionWindow(QWidget):
     def __init__(self, *args):
-        QWidget.__init__(self, *args)
+        super(OptionWindow, self).__init__()
         self.grid = QGridLayout()
         self.setLayout(self.grid)
 
 
 class SceneWidget(QGraphicsScene):
     def __init__(self, *args):
-        QGraphicsScene.__init__(self, *args)
+        super(SceneWidget, self).__init__()
 
     def mouseDoubleClickEvent(self, event):
         # print "click ok"
         if event.button() == Qt.Qt.LeftButton:
             p = event.buttonDownScenePos(Qt.Qt.LeftButton)
-            baloon = myBaloon("", p.x(), p.y(), 40.0, 40.0, [])
+            baloon = MyBaloon("", p.x(), p.y(), 40.0, 40.0, [])
             self.addItem(baloon)
 
 
 class MainWidget(QWidget):
     def __init__(self, *args):
-        QWidget.__init__(self, *args)
+        super(MainWidget, self).__init__()
         self.grid = QGridLayout()
         self.hbox = QHBoxLayout()
         self.vbox = QVBoxLayout()
         self.hbox.addStretch(1)
         self.imageName = ""
+        self.txtname = ''
+        self.parcertxt = files.ParcerTxt()
         self.scene = SceneWidget()
 
         self.view = QGraphicsView(self.scene)
@@ -554,15 +554,17 @@ class MainWidget(QWidget):
                 result.append(int(i))
             return result
 
-        fileInf = QFileInfo(filename)
-        self.txtname = fileInf.absolutePath() + '/' + fileInf.baseName() + ".txt"
+        if filename is None:
+            return None, None, None
+        fileInf = filename
+        self.txtname = f'{fileInf.dir}/{fileInf.name}.txt'
         coordinates = []
         texts = []
         niks = []
-        if QFileInfo(self.txtname).isFile():
-            f = open(self.txtname, "r")
-            data = f.read()
-            f.close()
+        if self.txtname != None:
+            with open(self.txtname, "r") as f:
+                data = f.read()
+
             self.body = re.compile(u'<aimg}}(.*)', re.S).findall(data)[0]
             # print self.body
             s = re.compile(u'@(.*?)~', re.S).findall(data)
@@ -588,35 +590,46 @@ class MainWidget(QWidget):
             return None, None, None
 
     def open(self, fileName):
-        if fileName != '':
-            self.imageName = fileName
-            image = QtGui.QImage(fileName)
+        logger.debug(f'Открываем картинку {fileName}')
+        if fileName != None:
+            self.imageName = str(fileName)
+            image = QtGui.QPixmap()
+            image.load(self.imageName)
             self.scene.clear()
+            logger.debug('Чистим сцену')
             self.scene.setSceneRect(0.0, 0.0, float(image.width()), float(image.height()))
-            self.scene.addPixmap(QtGui.QPixmap.fromImage(image))
-            coord, texts, niks = self.openTxt(fileName)
-            if coord != None:
-                for i in range(0, len(coord)):
-                    balun = myBaloon(texts[i], coord[i][1], coord[i][0], coord[i][2], coord[i][3], niks[i])
+            logger.debug('вставляем картинку')
+            self.scene.addPixmap(image)
+            logger.debug(f'Картинка загружена {fileName}')
+            status = self.parcertxt.open(fileName)
+            logger.debug(f'Статус текстового файла: {status}')
+            if status is not None:
+                logger.debug('Парсим текстовый файл')
+                title, descr, uptext, masks, texts, buttontext = self.parcertxt.get()
+                for itm in masks:
+                    balun = MyBaloon(itm['mask'], itm['x'], itm['y'], itm['w'], itm['h'])
                     self.scene.addItem(balun)
-                # break
+                for itm in texts:
+                    balun = MyBaloon(itm['text'], itm['x'], itm['y'], itm['w'], itm['h'])
+                    self.scene.addItem(balun)
+                logger.debug(f'Baloons is loaded')
                 main.statusBar().showMessage(u'Загружен ' + fileName)
             self.scene.update()
 
     def saveTextFile(self):
-        fileInf = QFileInfo(self.txtname)
-        fileInf2 = QFileInfo(self.imageName)
+        fileInf = self.txtname
+        fileInf2 = self.imageName
         pathImg = self.lineEdit.text()
         titleImg = self.titleImg.text()
         # print titleImg.toUtf8()
-        body1 = u"""{cnav} **""" + titleImg.toUtf8() + """**\\\n{{aimg>""" + pathImg + ":" + fileInf2.fileName() + """}}\n"""
+        body1 = u"""{cnav} **""" + titleImg.toUtf8() + """**\\\n{{aimg>""" + pathImg + ":" + fileInf2.name + """}}\n"""
         sss = ''
         for i in self.scene.items():
             if i.type() == 65550:
                 sss = i.retText() + "\n" + sss + "\n"
         sss = sss.strip().encode('utf-8')
 
-        if QFileInfo(self.txtname).isFile():
+        if self.txtname != None:
             f = open(self.txtname, "w")
             body2 = u"""{{<aimg}}"""
             ff = re.compile(u"}}([^{]*?){{", re.S).sub('}}' + "\n" + sss + '{{', self.body)
@@ -630,7 +643,7 @@ class MainWidget(QWidget):
 {cnav}"""
             f.write(body1 + sss + body2)
             f.close()
-        main.statusBar().showMessage(u'Сохранен ' + fileInf.fileName() + u" к стрипу" + fileInf2.fileName())
+        main.statusBar().showMessage(u'Сохранен ' + fileInf.name + u" к стрипу" + fileInf2.name)
 
     def hideAllBaloons(self):
         if not self.hided:
@@ -648,7 +661,7 @@ class MainWidget(QWidget):
 
 
 app = QApplication(sys.argv)
-main = main_window()
+main = MainWindow()
 main.load()
 main.show()
 
