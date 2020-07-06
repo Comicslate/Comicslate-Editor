@@ -36,16 +36,9 @@ from PyQt5.QtCore import (QSettings, QFileInfo, QSize, QRectF, QPoint, QDir, QPo
 import files
 
 
-
 logging.basicConfig(format='%(module)s:%(levelname)s:%(message)s', level=logging.DEBUG)
 logger = logging.getLogger('comicslate')
-#logger.setLevel(logging.DEBUG)
-#logging.getLogger('comicslate.files').setLevel(logging.DEBUG)
 
-print(dir(logging.Logger.manager))
-print(logging.Logger.manager.loggerDict)
-for i in logging.Logger.manager.loggerDict:
-    print(i)
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
