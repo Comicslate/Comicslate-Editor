@@ -87,6 +87,7 @@ class ParcerTxt(object):
         self.texts = []
         # текст под стрипом
         self.buttontext = ''
+        self.picname = ''
 
     def _checkfilename(self, filename):
         if os.name == 'nt':
@@ -109,8 +110,8 @@ class ParcerTxt(object):
             dirname = os.path.dirname(filename)
             name = os.path.basename(filename)
             name = '.'.join([name.split('.')[0], 'txt'])
-            logger.debug(f'filename {name}, dirname {dirname}')
             filename = join(dirname, name)
+            logger.debug(f'filename {name}, dirname {dirname}, fulname {filename}')
         if not os.path.isfile(filename):
             logger.debug(f'File {filename} not exists')
             return None
@@ -125,6 +126,7 @@ class ParcerTxt(object):
         if data.find('cotan') > 0:
             logger.debug(f'Cotan findet')
             self.parce_cotan(lines)
+        return 'Done'
 
     def parce_cotan(self, lines):
         idx = 1
@@ -140,7 +142,10 @@ class ParcerTxt(object):
                     duptext.append(lines[idx])
                 self.uptext = '\n'.join(duptext)
             if lines[idx].find('cotan') > 0 and not fcotan:
-                logger.debug(f'parse cotan block')
+                fnst = lines[idx].find('>') + 1
+                fnend = lines[idx].find('}')
+                self.picname = lines[idx][fnst:fnend]
+                logger.debug(f'parse cotan block of {self.picname}')
                 fcotan = True
                 while lines[idx + 1].find('cotan') < 0:
                     idx = idx + 1
@@ -158,12 +163,12 @@ class ParcerTxt(object):
                             exit(1)
                         coords = coords.split(',')
                         if len(coords) == 4:
-                            x, y, w, h = str_to_deg(coords)
+                            y, x, w, h = str_to_deg(coords)
                             deg = 0
                         elif len(coords) == 5:
-                            x, y, w, h, deg = str_to_deg(coords)
+                            y, x, w, h, deg = str_to_deg(coords)
                         else:
-                            x, y, w, h, deg = [0, 0, 0, 0, 0]
+                            y, x, w, h, deg = [0, 0, 0, 0, 0]
                         if len(rounds) > 0:
                             rounds = rounds.split(',')
                             if len(rounds) == 1:
@@ -206,9 +211,100 @@ class ParcerTxt(object):
                 self.buttontext = '\n'.join(text)
             idx = idx + 1
 
+    def parce_aimg(self, lines):
+        # функция парсера aimg из основного модуля. Просто сохранил. Потом переписать.
+        def str2int(string):
+            result = []
+            for i in string.split(","):
+                # print string
+                result.append(int(i))
+            return result
+
+        coordinates = []
+        niks = []
+        texts = []
+        data = '\n'.join(lines)
+        self.body = re.compile(u'<aimg}}(.*)', re.S).findall(data)[0]
+        # print self.body
+        s = re.compile(u'@(.*?)~', re.S).findall(data)
+        titleImg = re.compile(u'{cnav}[^*]\*\*([^*]*?)\*').findall(data)[0].decode('utf8')
+        # self.titleImg.setText(titleImg)
+        pathImg = re.compile(u'{aimg>([^]]*?)}').findall(data)
+        # self.lineEdit.setText(":".join(pathImg[0].split(":")[:-1]))
+        # print ":".join(pathImg[0].split(":")[:-1])
+        # print pathImg[0].split(":")
+        for i in s:
+            ss = i.split("\n")
+
+            coordinates.append(str2int(ss[0]))
+            rr = re.compile(u'\(.*?\)|\[.*?\]', re.S).findall(ss[1])
+            # print rr
+            niks.append(rr)
+            ss[1] = re.compile(u'\(.*?\)|\[.*?\]').sub('', ss[1])
+            # ss[1]=re.compile(u'\[.*?\]').sub('',ss[1])
+            texts.append(ss[1])
+        return coordinates, texts, niks
+
+    def savefile(self):
+        lines = []
+        lines.append(self.title)
+        lines.append(self.descr)
+        lines.append('')
+        lines.append('{cnav}')
+        lines.append(''.join(['{{cotan>', self.picname, '}}']))
+        for line in self.masks:
+            coord = dict_to_write(line)
+            lines.append(coord)
+            if line['mask'] is None:
+                text = '#'
+            else:
+                text = ''.join(['#', line['mask']])
+            lines.append(text)
+            lines.append('~')
+        for line in self.texts:
+            coord = dict_to_write(line)
+            lines.append(coord)
+            text = line['text']
+            lines.append(text)
+            lines.append('~')
+        lines.append('{{<cotan}}')
+        if self.uptext != '':
+            lines.append(self.uptext)
+        lines.append('{cnav}')
+        ret = '\n'.join(lines)
+        return ret
+
 
 def str_to_deg(listing):
     return [int(i) for i in listing]
+
+
+def dict_to_write(data):
+    ret1 = []
+    ret1.append(str(data['x']))
+    ret1.append(str(data['y']))
+    ret1.append(str(data['w']))
+    ret1.append(str(data['h']))
+    if data['deg'] != 0:
+        ret1.append(str(data['deg']))
+    ret2 = []
+    if data['lup'] != '10%':
+        if data['rup'] != data['lup']:
+            ret2.append(data['lup'])
+            ret2.append(data['rup'])
+            ret2.append(data['rdn'])
+            ret2.append(data['ldn'])
+        elif data['rup'] != data['rdn']:
+            ret2.append(data['lup'])
+            ret2.append(data['rdn'])
+        else:
+            ret2.append(data['lup'])
+    ret = ','.join(ret1)
+    ret = ''.join(['@', ret])
+    if len(ret2) > 0:
+        ret2 = ','.join(ret2)
+        ret = ';'.join([ret, ret2])
+    return ret
 
 
 if __name__ == '__main__':
@@ -217,4 +313,5 @@ if __name__ == '__main__':
     # e = MyFile(f)
     e = ParcerTxt()
     e.open(f)
-    print(e.get())
+    print(e.savefile())
+

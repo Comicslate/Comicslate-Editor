@@ -189,7 +189,8 @@ class MainWindow(QMainWindow):
 
 class Node(QGraphicsItem):
     def __init__(self, parent=None, scene=None):
-        QGraphicsItem.__init__(self, parent=None, scene=None)
+        # QGraphicsItem.__init__(self, parent=None, scene=None)
+        super(Node, self).__init__()
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setZValue(-1)
@@ -229,9 +230,10 @@ class Node(QGraphicsItem):
         QGraphicsItem.mouseReleaseEvent(self, event)
 
 
-class NodeDel(QGraphicsItem):
+class Mask(QGraphicsItem):
     def __init__(self, parent=None, scene=None):
-        QGraphicsItem.__init__(self, parent=None, scene=None)
+        #QGraphicsItem.__init__(self, parent=None, scene=None)
+        super(Mask, self).__init__()
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemIsSelectable)
         self.setZValue(-1)
@@ -261,16 +263,18 @@ class NodeDel(QGraphicsItem):
 
 class MyTextEdit(QWidget):
     def __init__(self, text, parent=None):
-        super(MyTextEdit, self).__init__(self, parent=None)
+        super(MyTextEdit, self).__init__()
         self.grid = QGridLayout()
         # self.setWindowFlags(Qt.Qt.FramelessWindowHint | Qt.Qt.WindowStaysOnBottomHint)
+        logger.debug(f'Создаем правку текста')
         self.readSettings()
+        logger.debug(f'Прочитали настройки')
         self.text = text
         self.parent = parent
 
         self.textEdit = QTextEdit()
         self.textEdit.setPlainText(self.text)
-
+        logger.debug(f'Рисуем кнопки')
         self.buttonOk = QPushButton(u"Применить", self)
         self.buttonCancel = QPushButton(u"Отменить", self)
 
@@ -281,14 +285,11 @@ class MyTextEdit(QWidget):
 
         self.okAct = QAction('Ok', self)
         self.cancelAct = QAction('Cancel', self)
-
-        #self.connect(self.buttonOk, SIGNAL('clicked()'), self.Ok)
-        self.buttonOk.connect(self.Ok)
-        #self.connect(self.buttonCancel, SIGNAL('clicked()'), self.Cancel)
-        self.buttonCancel.connect(self.Cancel)
+        logger.debug(f'Коннектим кнопки')
+        self.buttonOk.clicked.connect(self.Ok)
+        self.buttonCancel.clicked.connect(self.Cancel)
 
     def Ok(self):
-        # print unicode(self.textEdit.toPlainText())
         self.parent.retOk(self.textEdit.toPlainText())
         self.writeSettings()
         self.close()
@@ -305,29 +306,28 @@ class MyTextEdit(QWidget):
         event.accept()
 
     def writeSettings(self):
-        self.settings = QSettings(u'Comicslate', u'Comicslate Viewer')
+        self.settings = QSettings('Comicslate', 'Comicslate Viewer')
         self.settings.beginGroup('EditWindow')
         self.settings.setValue("size", self.size())
         self.settings.setValue("position", self.pos())
         self.settings.endGroup()
 
     def readSettings(self):
-        self.settings = QSettings(u'Comicslate', u'Comicslate Viewer')
+        self.settings = QSettings('Comicslate', 'Comicslate Viewer')
         self.settings.beginGroup('EditWindow')
-        self.resize(self.settings.value('size', QSize(100, 100)).toSize())
-        self.move(self.settings.value('position', QPoint(100, 100)).toPoint())
+        self.resize(self.settings.value('size', QSize(100, 100)))
+        self.move(self.settings.value('position', QPoint(100, 100)))
         self.settings.endGroup()
 
 
 class MyBaloon(QGraphicsRectItem):
     def __init__(self, text, x, y, w, h, parent=None, scene=None):
-        super(MyBaloon, self).__init__(self, QRectF(x - 5, y - 5, w + 10, h + 10), parent=None)
+        super(MyBaloon, self).__init__()
         self.x = x
         self.y = y
         self.w = w
         self.h = h
         self.niks = []
-        #self.text = text.decode("utf-8")
         self.text = text
         font = QtGui.QFont("Comic Sans MS", 8)
         self.color = QtGui.QColor(255, 255, 255, 255)
@@ -350,7 +350,7 @@ class MyBaloon(QGraphicsRectItem):
         self.baloonNode1.hide()
         self.baloonNode2.hide()
         point = QPointF(self.x + self.w, self.y)
-        self.delNode = NodeDel()
+        self.delNode = Mask()
         self.delNode.setParentItem(self)
         self.delNode.setPos(point)
         self.delNode.hide()
@@ -378,6 +378,7 @@ class MyBaloon(QGraphicsRectItem):
         painter.save()
         painter.setBrush(self.color)
         painter.setPen(self.pen)
+        # logger.debug(f'Type: {type(self.x)}')
         painter.drawRoundedRect(self.x - 5, self.y - 5, self.w + 10, self.h + 10, 5, 5)
         painter.restore()
 
@@ -396,7 +397,6 @@ class MyBaloon(QGraphicsRectItem):
                     if i.type() not in [7, 65540]:
                         if i != self:
                             i.hide()
-                            # print i.type(), i
                             self.itemsColided.append(i)
             self.color = QtGui.QColor(255, 255, 255, 40)
             self.pen = QtGui.QPen(Qt.Qt.blue, 2)
@@ -421,14 +421,12 @@ class MyBaloon(QGraphicsRectItem):
         string = "@" + str(int(self.y)) + "," + str(int(self.x)) + "," + str(int(self.w)) + "," + str(
             int(self.h)) + "\n"
         string = string + self.fullText() + "\n~"
-        # print string
         return string
 
     def retOk(self, text):
         self.textItem.show()
         self.text = self.onlyText(text)
-        # print unicode(text)
-        self.textItem.setHtml("<div align=\"center\">" + self.text + "</div>")
+        self.textItem.setHtml(f'<div align=\"center\">{self.text}</div>')
         self.setFlag(QGraphicsItem.ItemIsMovable, enabled=False)
         self.textItem.setTextInteractionFlags(Qt.Qt.NoTextInteraction)
         self.color = QtGui.QColor(255, 255, 255, 255)
@@ -496,7 +494,10 @@ class SceneWidget(QGraphicsScene):
         # print "click ok"
         if event.button() == Qt.Qt.LeftButton:
             p = event.buttonDownScenePos(Qt.Qt.LeftButton)
-            baloon = MyBaloon("", p.x(), p.y(), 40.0, 40.0, [])
+            # logger.debug(f'Type: {type(p.y())}')
+            x = int(p.x())
+            y = int(p.y())
+            baloon = MyBaloon("", x, y, 40.0, 40.0)
             self.addItem(baloon)
 
 
@@ -539,49 +540,6 @@ class MainWidget(QWidget):
         self.view.scale(0.75, 0.75)
         self.scene.update()
 
-    def openTxt(self, filename):
-        def str2int(string):
-            result = []
-            for i in string.split(","):
-                # print string
-                result.append(int(i))
-            return result
-
-        if filename is None:
-            return None, None, None
-        fileInf = filename
-        self.txtname = f'{fileInf.dir}/{fileInf.name}.txt'
-        coordinates = []
-        texts = []
-        niks = []
-        if self.txtname != None:
-            with open(self.txtname, "r") as f:
-                data = f.read()
-
-            self.body = re.compile(u'<aimg}}(.*)', re.S).findall(data)[0]
-            # print self.body
-            s = re.compile(u'@(.*?)~', re.S).findall(data)
-            titleImg = re.compile(u'{cnav}[^*]\*\*([^*]*?)\*').findall(data)[0].decode('utf8')
-            self.titleImg.setText(titleImg)
-            pathImg = re.compile(u'{aimg>([^]]*?)}').findall(data)
-            self.lineEdit.setText(":".join(pathImg[0].split(":")[:-1]))
-            # print ":".join(pathImg[0].split(":")[:-1])
-            # print pathImg[0].split(":")
-            for i in s:
-                ss = i.split("\n")
-
-                coordinates.append(str2int(ss[0]))
-                rr = re.compile(u'\(.*?\)|\[.*?\]', re.S).findall(ss[1])
-                # print rr
-                niks.append(rr)
-                ss[1] = re.compile(u'\(.*?\)|\[.*?\]').sub('', ss[1])
-                # ss[1]=re.compile(u'\[.*?\]').sub('',ss[1])
-                texts.append(ss[1])
-            return coordinates, texts, niks
-        else:
-            main.statusBar().showMessage(u'Файл ' + filename + u' не имеет текстового подстрочника')
-            return None, None, None
-
     def open(self, fileName):
         logger.debug(f'Открываем картинку {fileName}')
         if fileName != None:
@@ -599,43 +557,26 @@ class MainWidget(QWidget):
             if status is not None:
                 logger.debug('Парсим текстовый файл')
                 title, descr, uptext, masks, texts, buttontext = self.parcertxt.get()
+                logger.debug(f'Добавляем балуны')
                 for itm in masks:
                     balun = MyBaloon(itm['mask'], itm['x'], itm['y'], itm['w'], itm['h'])
-                    self.scene.addItem(balun)
+                    # пока уберем маски
+                    # self.scene.addItem(balun)
                 for itm in texts:
                     balun = MyBaloon(itm['text'], itm['x'], itm['y'], itm['w'], itm['h'])
                     self.scene.addItem(balun)
                 logger.debug(f'Baloons is loaded')
-                main.statusBar().showMessage(u'Загружен ' + fileName)
+                main.statusBar().showMessage(f'Загружен {fileName}')
             self.scene.update()
 
     def saveTextFile(self):
+        self.parcertxt.savefile()
         fileInf = self.txtname
         fileInf2 = self.imageName
         pathImg = self.lineEdit.text()
         titleImg = self.titleImg.text()
         # print titleImg.toUtf8()
-        body1 = u"""{cnav} **""" + titleImg.toUtf8() + """**\\\n{{aimg>""" + pathImg + ":" + fileInf2.name + """}}\n"""
-        sss = ''
-        for i in self.scene.items():
-            if i.type() == 65550:
-                sss = i.retText() + "\n" + sss + "\n"
-        sss = sss.strip().encode('utf-8')
 
-        if self.txtname != None:
-            f = open(self.txtname, "w")
-            body2 = u"""{{<aimg}}"""
-            ff = re.compile(u"}}([^{]*?){{", re.S).sub('}}' + "\n" + sss + '{{', self.body)
-            # f.write(ff)
-            f.write(body1 + sss + body2 + self.body)
-            f.close()
-        else:
-            f = open(self.txtname, "w")
-
-            body2 = u"""{{<aimg}}
-{cnav}"""
-            f.write(body1 + sss + body2)
-            f.close()
         main.statusBar().showMessage(u'Сохранен ' + fileInf.name + u" к стрипу" + fileInf2.name)
 
     def hideAllBaloons(self):
